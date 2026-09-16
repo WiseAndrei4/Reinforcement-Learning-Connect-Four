@@ -6,13 +6,14 @@ def save_agent(agent, filename="agent.json"):
     with open(filename, "w") as f:
         json.dump(agent.q_table, f)
     print(f"Agentul a fost salvat în '{filename}'!")
+
 def load_agent(agent, filename="agent.json"):
     try:
         with open(filename, "r") as f:
-            agent.q_table=json.load(f)
+            agent.q_table = json.load(f)
             print("Succesfully loaded!")
-    except FileExistsError as e:
-        print("Missing file!")
+    except FileNotFoundError:  # Corectat din FileExistsError
+        print("Missing file! Playing with empty Q-table.")
 
 def show_board(board):
     print("\n   0   1   2   3   4   5   6")  # Indicii coloanelor
@@ -23,9 +24,9 @@ def show_board(board):
             if cell == 0:
                 lila.append(" ")  # Spațiu gol
             elif cell == 1:
-                lila.append("🔴")  # Jucătorul 1 (Omul)
+                lila.append("A")  # Jucătorul 1 (Omul)
             else:
-                lila.append("🔵")  # Jucătorul 2 (Agentul)
+                lila.append("B")  # Jucătorul 2 (Agentul)
         print(" │ " + " │ ".join(lila) + " │")
         if row != board[-1]:
             print(" ├───┼───┼───┼───┼───┼───┼───┤")
@@ -62,7 +63,7 @@ def play_game(agent):
                 # Rândul Agentului AI
                 print("\n🤖 Agentul se gândește...")
                 state_copy = [row[:] for row in env.board]
-                col_ai = agent.choose_action(state_copy)
+                col_ai = agent.choose_action(state_copy, my_symbol='B')
 
                 rezultat = env.play(col_ai)
                 # Dacă agentul încearcă o mutare greșită (rar, dar posibil dacă nu e complet antrenat)
