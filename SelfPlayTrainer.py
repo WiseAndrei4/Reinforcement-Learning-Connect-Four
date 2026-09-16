@@ -14,83 +14,103 @@ class SelfPlayTrainer:
         is_random_match = random.random() < self.random_chance
 
         while env.winner == -1:
-            p = env.step  # Jucătorul curent (1 sau 2)
+            p = env.step  # 1 sau 2
             opp = 2 if p == 1 else 1
 
-            # 1. Actualizare amânată (doar pentru entitățile care învață)
-            # Botul random (Jucătorul 2 în meciurile random) nu are Q-table și nu învață
-            if p == 1 or (p == 2 and not is_random_match):
-                if history[p] is not None:
-                    prev_state, prev_action = history[p]
-                    self.agent.learn(
-                        prev_state, prev_action, 0.0, env.board, done=False
-                    )
+            # Definim simbolurile pentru această tură
+            p_symbol = "A" if p == 1 else "B"  # sau ['A', 'B'][p-1]
+            opp_symbol = "A" if opp == 1 else "B"
 
+            # 1. ACTUALIZARE AMÂNATĂ (Când rândul revine la jucătorul curent)
+            if history[p] is not None:
+                prev_state, prev_action = history[p]
+                self.agent.learn(
+                    prev_state,
+                    prev_action,
+                    0.0,
+                    env.board,
+                    done=False,
+                    my_symbol=p_symbol,  # <--- AICI
+                )
+
+            # 2. ALEGEREA ACȚIUNII
             state_copy = [row[:] for row in env.board]
-
-            # 2. Alegerea acțiunii
             if p == 2 and is_random_match:
-                # Oponentul Random: alege o coloană la întâmplare
-                action = random.randint(0, 6)
+                action = random.choice([c for c in range(7) if env.board[0][c] == 0])
             else:
-                # Agentul Inteligent (Self-Play sau când e Jucătorul 1)
-                action = self.agent.choose_action(state_copy)
+                action = self.agent.choose_action(state_copy, my_symbol=p_symbol)
 
-            # 3. Executarea mutării
+            # 3. EXECUTAREA MUTĂRII
             result = env.play(action)
 
-            # 4. Gestionarea penalizărilor și recompenselor finale
+            # 4. RECOMPENSELE FINALE
             if result == "gresit":
-                if p == 1 or (p == 2 and not is_random_match):
-                    self.agent.learn(
-                        state_copy, action, -10.0, env.board, done=True
-                    )
-                break  # Mutare invalidă
+                self.agent.learn(
+                    state_copy,
+                    action,
+                    -10.0,
+                    env.board,
+                    done=True,
+                    my_symbol=p_symbol,  # <--- AICI
+                )
+                break
 
             if env.winner == p:
-                # Câștigătorul primește +1 (dacă e entitate care învață)
-                if p == 1 or (p == 2 and not is_random_match):
-                    self.agent.learn(
-                        state_copy, action, 1.0, env.board, done=True
-                    )
-                # Pierzătorul primește -1 (dacă învață)
-                if history[opp] is not None and (
-                    opp == 1 or (opp == 2 and not is_random_match)
-                ):
+                # Câștigătorul își evaluează mutarea cu simbolul LUI
+                self.agent.learn(
+                    state_copy,
+                    action,
+                    1.0,
+                    env.board,
+                    done=True,
+                    my_symbol=p_symbol,  # <--- AICI
+                )
+
+                # Pierzătorul își evaluează mutarea anterioară cu simbolul LUI
+                if history[opp] is not None:
                     opp_state, opp_action = history[opp]
                     self.agent.learn(
-                        opp_state, opp_action, -1.0, env.board, done=True
+                        opp_state,
+                        opp_action,
+                        -1.0,
+                        env.board,
+                        done=True,
+                        my_symbol=opp_symbol,  # <--- AICI (Atenție: opp_symbol!)
                     )
                 break
 
             elif env.winner == 0:
-                # Remiză: ambii primesc +0.5
-                if p == 1 or (p == 2 and not is_random_match):
-                    self.agent.learn(
-                        state_copy, action, 0.5, env.board, done=True
-                    )
-                if history[opp] is not None and (
-                    opp == 1 or (opp == 2 and not is_random_match)
-                ):
+                # Remiză: ambii primesc recompensa cu simbolul lor
+                self.agent.learn(
+                    state_copy,
+                    action,
+                    0.5,
+                    env.board,
+                    done=True,
+                    my_symbol=p_symbol,  # <--- AICI
+                )
+                if history[opp] is not None:
                     opp_state, opp_action = history[opp]
                     self.agent.learn(
-                        opp_state, opp_action, 0.5, env.board, done=True
+                        opp_state,
+                        opp_action,
+                        0.5,
+                        env.board,
+                        done=True,
+                        my_symbol=opp_symbol,  # <--- AICI (Atenție: opp_symbol!)
                     )
                 break
 
             else:
-                # Jocul continuă. Salvăm starea doar dacă jucătorul învață
-                if p == 1 or (p == 2 and not is_random_match):
-                    history[p] = (state_copy, action)
+                # Salvarea stării pentru tura următoare
+                history[p] = (state_copy, action)
 
     def run_training(self, episodes=60000):
         print(f"Pornim antrenamentul hibrid pentru {episodes} episoade...")
+        decay_rate = (0.01 / self.agent.epsilon) ** (1.0 / episodes)
         for ep in range(episodes):
             self.train_episode()
-
-            # Scădem explorarea treptat la fiecare 2000 de meciuri
-            if ep % 2000 == 0 and ep > 0:
-                self.agent.epsilon = max(0.01, self.agent.epsilon * 0.95)
+            self .agent.epsilon=max(0.01, self. agent.epsilon*decay_rate)
 
         print(
             f"Antrenament complet! Q-Table-ul are acum {len(self.agent.q_table)} stări memorate."
