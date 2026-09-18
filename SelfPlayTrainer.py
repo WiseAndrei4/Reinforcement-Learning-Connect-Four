@@ -112,9 +112,5 @@ class SelfPlayTrainer:
             self.train_episode()
             self .agent.epsilon=max(0.01, self. agent.epsilon*decay_rate)
 
-        print(
-            f"Antrenament complet! Q-Table-ul are acum {len(self.agent.q_table)} stări memorate."
-        )
-
     def q_table_size_check(self):
         return self.agent.q_table
