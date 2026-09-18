@@ -1,6 +1,7 @@
 import random
+import json
 
-class QLearningAgent:
+class QTableAgent:
 
     def __init__(
         self, alpha: float = 0.1, gamma: float = 0.9, epsilon: float = 0.1
@@ -94,3 +95,11 @@ class QLearningAgent:
             reward + self.gamma * max_future_q - current_q
         )
         self.q_table[state_str][action] = new_q
+
+    def load_agent(agent, filename="agent.json"):
+        try:
+            with open(filename, "r") as f:
+                agent.q_table = json.load(f)
+                print("Succesfully loaded!")
+        except FileNotFoundError:  # Corectat din FileExistsError
+            print("Missing file! Playing with empty Q-table.")

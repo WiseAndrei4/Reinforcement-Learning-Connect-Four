@@ -2,7 +2,7 @@ from functools import reduce
 import multiprocessing as mp
 
 # Importăm componentele create anterior
-from AgentDriver import QLearningAgent
+from MinMaxAgentDriver import QLearningAgent
 from SelfPlayTrainer import SelfPlayTrainer
 from PlayGame import save_agent
 
