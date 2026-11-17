@@ -1,57 +1,73 @@
-from functools import reduce
 import multiprocessing as mp
-
-# Importăm componentele create anterior
-from MinMaxAgentDriver import QLearningAgent
+from FeatureQLearningAgentDriver import FeatureQLearningAgent
 from SelfPlayTrainer import SelfPlayTrainer
-from PlayGame import save_agent
+from QTableAgentDriver import QTableAgent
 
 
 def worker_train(episodes_per_worker):
-    """Metodă executată izolat pe un singur nucleu CPU."""
-    local_agent = QLearningAgent(alpha=0.1, gamma=0.9, epsilon=0.2)
+    # Train a single, isolated, agent on every core
+    local_agent = FeatureQLearningAgent()
+    # local_agent = QTableAgent()
     trainer = SelfPlayTrainer(local_agent, random_chance=0.2)
     trainer.run_training(episodes=episodes_per_worker)
-    return local_agent.q_table
+    return local_agent.weights
+    # return local_agent.q_table
 
 
-def merge_q_tables(q_table1, q_table2):
-    """Îmbină două Q-Tables calculând media scorurilor pentru stările comune."""
-    merged = q_table1.copy()
-    for state, q_values2 in q_table2.items():
-        if state not in merged:
-            merged[state] = q_values2
-        else:
-            # Păstrăm valoarea Q care deviază cel mai mult de la 0.0 (care are experiență reală)
-            q_values1 = merged[state]
-            best_q = []
-            for q1, q2 in zip(q_values1, q_values2):
-                best_q.append(q1 if abs(q1) > abs(q2) else q2)
-            merged[state] = best_q
+def merge_q_tables(tables):
+    """Merge worker Q-tables by averaging non-zero Q-values for shared states."""
+    merged = {}
+    counts = {}
+
+    for table in tables:
+        for state, q_vals in table.items():
+            if state not in merged:
+                merged[state] = q_vals[:]
+                counts[state] = [1 if q != 0.0 else 0 for q in q_vals]
+            else:
+                for i, q in enumerate(q_vals):
+                    if q != 0.0:
+                        merged[state][i] += q
+                        counts[state][i] += 1
+
+    for state, q_vals in merged.items():
+        for i in range(7):
+            if counts[state][i] > 1:
+                q_vals[i] /= counts[state][i]
+
     return merged
 
 
 if __name__ == "__main__":
-    num_cores = mp.cpu_count()  # Detectează automat toate nucleele disponibile
-    total_episodes = 2000000  #5m
+    num_cores = mp.cpu_count()
+    # num_cores = min(8, mp.cpu_count() )
+    total_episodes = 20000000  # 20m
     episodes_per_core = total_episodes // num_cores
 
     print(
-        f"🚀 Pornim antrenarea paralelă pe {num_cores} nuclee ({episodes_per_core} meciuri/nucleu)..."
+        f"Using {num_cores} cores for training,  ({episodes_per_core} episodes/core)..."
     )
 
-    # Lansăm procesele în paralel
     with mp.Pool(processes=num_cores) as pool:
         results = pool.map(worker_train, [episodes_per_core] * num_cores)
 
-    print("🔄 Îmbinăm rezultatele de pe toate nucleele...")
-    final_q_table = reduce(merge_q_tables, results)
+    # Learning mean for every core
+    """
+    master_agent = FeatureQLearningAgent()
+    master_agent.weights = [
+        sum(w[i] for w in results) / len(results)
+        for i in range(len(master_agent.weights))
+    ]
+    """
+    master_agent = FeatureQLearningAgent()
+    master_agent.weights = [
+        sum(w[i] for w in results) / len(results)
+        for i in range(len(master_agent.weights))
+    ]
+    master_agent.save_weights("weights.json")
+    # master_agent = QTableAgent()
+    # master_agent.q_table = merge_q_tables(results)
+    # master_agent.save_agent("agent.json")
 
-    # Salvăm rezultatul final într-o singură instanță de agent
-    master_agent = QLearningAgent()
-    master_agent.q_table = final_q_table
-    save_agent(master_agent, "agent_connect4.pkl")
-
-    print(
-        f"✅ Salvat cu succes! Q-Table-ul final conține {len(final_q_table)} stări unice."
-    )
+    print("Done! Learned weights:", [round(w, 4) for w in master_agent.weights])
+    # print(f"Done! Learned {len(master_agent.q_table)} states.")

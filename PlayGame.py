@@ -80,9 +80,9 @@ def main():
 
             # Mutare Om (Click Stânga)
             if (
-                event.type == pygame.MOUSEBUTTONDOWN
-                and not game_over
-                and env.step == 1
+                    event.type == pygame.MOUSEBUTTONDOWN
+                    and not game_over
+                    and env.step == 1
             ):
                 posx = event.pos[0]
                 col = posx // SQUARESIZE

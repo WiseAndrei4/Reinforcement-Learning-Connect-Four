@@ -1,23 +1,23 @@
 from GameDriver import GameDriver
 import random
 
+
 class SelfPlayTrainer:
     def __init__(self, agent, random_chance=0.2):
         self.agent = agent
-        self.random_chance = random_chance  # 20% șanse de meci împotriva unui bot random
+        self.random_chance = random_chance  # 20% chances to match against a random bot
 
     def train_episode(self):
         env = GameDriver()
         history = {1: None, 2: None}
-
-        # Decidem tipul meciului pentru acest episod
-        is_random_match = random.random() < self.random_chance
+        
+        random_side = random.choice([1, 2]) if random.random() < self.random_chance else None
 
         while env.winner == -1:
             p = env.step  # 1 sau 2
             opp = 2 if p == 1 else 1
 
-            # Definim simbolurile pentru această tură
+            # Defining the symbols for this episode
             p_symbol = "A" if p == 1 else "B"  # sau ['A', 'B'][p-1]
             opp_symbol = "A" if opp == 1 else "B"
 
@@ -30,20 +30,20 @@ class SelfPlayTrainer:
                     0.0,
                     env.board,
                     done=False,
-                    my_symbol=p_symbol,  # <--- AICI
+                    my_symbol=p_symbol,
                 )
 
-            # 2. ALEGEREA ACȚIUNII
+            # 2. Choosing the action
             state_copy = [row[:] for row in env.board]
-            if p == 2 and is_random_match:
+            if p == random_side:
                 action = random.choice([c for c in range(7) if env.board[0][c] == 0])
             else:
                 action = self.agent.choose_action(state_copy, my_symbol=p_symbol)
 
-            # 3. EXECUTAREA MUTĂRII
+            # 3. Action execution
             result = env.play(action)
 
-            # 4. RECOMPENSELE FINALE
+            # 4. Rewards
             if result == "gresit":
                 self.agent.learn(
                     state_copy,
@@ -51,22 +51,22 @@ class SelfPlayTrainer:
                     -10.0,
                     env.board,
                     done=True,
-                    my_symbol=p_symbol,  # <--- AICI
+                    my_symbol=p_symbol,
                 )
                 break
 
             if env.winner == p:
-                # Câștigătorul își evaluează mutarea cu simbolul LUI
+                # The winner evaluates
                 self.agent.learn(
                     state_copy,
                     action,
                     1.0,
                     env.board,
                     done=True,
-                    my_symbol=p_symbol,  # <--- AICI
+                    my_symbol=p_symbol,
                 )
 
-                # Pierzătorul își evaluează mutarea anterioară cu simbolul LUI
+                # The loser evaluates
                 if history[opp] is not None:
                     opp_state, opp_action = history[opp]
                     self.agent.learn(
@@ -75,19 +75,19 @@ class SelfPlayTrainer:
                         -1.0,
                         env.board,
                         done=True,
-                        my_symbol=opp_symbol,  # <--- AICI (Atenție: opp_symbol!)
+                        my_symbol=opp_symbol,
                     )
                 break
 
             elif env.winner == 0:
-                # Remiză: ambii primesc recompensa cu simbolul lor
+                # Tie: both receive rewards
                 self.agent.learn(
                     state_copy,
                     action,
                     0.5,
                     env.board,
                     done=True,
-                    my_symbol=p_symbol,  # <--- AICI
+                    my_symbol=p_symbol,
                 )
                 if history[opp] is not None:
                     opp_state, opp_action = history[opp]
@@ -97,20 +97,20 @@ class SelfPlayTrainer:
                         0.5,
                         env.board,
                         done=True,
-                        my_symbol=opp_symbol,  # <--- AICI (Atenție: opp_symbol!)
+                        my_symbol=opp_symbol,
                     )
                 break
 
             else:
-                # Salvarea stării pentru tura următoare
+                # Saving
                 history[p] = (state_copy, action)
 
     def run_training(self, episodes=60000):
-        print(f"Pornim antrenamentul hibrid pentru {episodes} episoade...")
+        print(f"Pornim antrenamentul pentru {episodes} episoade...")
         decay_rate = (0.01 / self.agent.epsilon) ** (1.0 / episodes)
         for ep in range(episodes):
             self.train_episode()
-            self .agent.epsilon=max(0.01, self. agent.epsilon*decay_rate)
+            self.agent.epsilon = max(0.01, self.agent.epsilon * decay_rate)
 
     def q_table_size_check(self):
         return self.agent.q_table

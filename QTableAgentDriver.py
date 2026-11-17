@@ -51,6 +51,9 @@ class QTableAgent:
         # Identificăm doar coloanele valide (care nu sunt pline)
         valid_cols = [c for c in range(7) if board[0][c] == 0]
 
+        if q_values is None:
+            return random.choice(valid_cols)
+
         # Dacă coloanele valide sunt pline (caz extrem), fallback pe 0..6
         if not valid_cols:
             valid_cols = list(range(7))
@@ -103,3 +106,7 @@ class QTableAgent:
                 print("Succesfully loaded!")
         except FileNotFoundError:  # Corectat din FileExistsError
             print("Missing file! Playing with empty Q-table.")
+
+    def save_agent(self, filename="agent.json"):
+        with open(filename, "w") as f:
+            json.dump(self.q_table, f)
